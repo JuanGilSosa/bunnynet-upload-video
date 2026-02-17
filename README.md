@@ -7,7 +7,7 @@ Aplicación React + Vite para subir videos a BunnyNet con funcionalidad de drag 
 - ✨ **Drag & Drop**: Arrastra y suelta videos directamente
 - 📊 **Progreso en tiempo real**: Visualiza el progreso de subida con barra animada
 - 🎬 **Preview de video**: Vista previa del video antes de subir
-- ✅ **Validación de archivos**: Verifica formato y tamaño (máx. 500MB)
+- ✅ **Validación de archivos**: Verifica formato y tamaño (máx. 2GB)
 - 🎨 **Diseño moderno**: UI inspirada en Tailwind CSS con gradientes y animaciones
 - 📱 **Responsive**: Funciona perfectamente en móviles y desktop
 
@@ -48,7 +48,7 @@ Inicia el servidor de desarrollo:
 npm run dev
 ```
 
-La aplicación estará disponible en `http://localhost:5173`
+La aplicación estará disponible en `http://localhost:5174`
 
 ### Producción
 
@@ -72,7 +72,7 @@ Para exponer tu aplicación localmente y permitir que otros suban videos:
 2. Ejecuta el servidor de desarrollo
 3. Crea un túnel:
    ```bash
-   cloudflared tunnel --url http://localhost:5173
+   cloudflared tunnel --url http://localhost:5174
    ```
 4. Comparte la URL generada
 
