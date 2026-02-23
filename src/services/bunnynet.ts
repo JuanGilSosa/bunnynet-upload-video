@@ -5,6 +5,7 @@ const LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID;
 
 export const uploadVideoToBunnyNet = async (
   file: File,
+  description: string,
   onProgress: (percentage: number) => void
 ): Promise<BunnyNetUploadResponse> => {
   try {
@@ -20,6 +21,7 @@ export const uploadVideoToBunnyNet = async (
       },
       body: JSON.stringify({
         title: file.name.replace(/\.[^/.]+$/, ''), // Nombre sin extensión
+        description: description,
       }),
     });
 
@@ -29,6 +31,27 @@ export const uploadVideoToBunnyNet = async (
 
     const videoData = await createResponse.json();
     const videoGuid = videoData.guid;
+
+    // Actualizar la descripción (el endpoint de creación no la acepta)
+    if (description.trim()) {
+      const updateUrl = `https://video.bunnycdn.com/library/${LIBRARY_ID}/videos/${videoGuid}`;
+      await fetch(updateUrl, {
+        method: 'POST',
+        headers: {
+          'AccessKey': API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description: description,
+          metaTags: [
+            {
+              property: 'description',
+              value: description,
+            },
+          ],
+        }),
+      });
+    }
 
     // Ahora subir el archivo del video
     const uploadFileUrl = `https://video.bunnycdn.com/library/${LIBRARY_ID}/videos/${videoGuid}`;

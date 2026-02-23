@@ -7,6 +7,7 @@ const VideoUploader = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [description, setDescription] = useState('');
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     percentage: 0,
     status: 'idle',
@@ -98,7 +99,7 @@ const VideoUploader = () => {
     });
 
     try {
-      const result = await uploadVideoToBunnyNet(selectedFile, (percentage) => {
+      const result = await uploadVideoToBunnyNet(selectedFile, description, (percentage) => {
         setUploadProgress({
           percentage,
           status: 'uploading',
@@ -131,6 +132,7 @@ const VideoUploader = () => {
   const handleReset = () => {
     setSelectedFile(null);
     setVideoPreview(null);
+    setDescription('');
     setUploadProgress({
       percentage: 0,
       status: 'idle',
@@ -205,6 +207,30 @@ const VideoUploader = () => {
               <p className="file-size">
                 {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
               </p>
+            </div>
+
+            <div className="description-field">
+              <label htmlFor="video-description" className="description-label">
+                Descripción del video
+              </label>
+              <textarea
+                id="video-description"
+                className="description-textarea"
+                placeholder="Ingresa una descripción para el video..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={uploadProgress.status === 'uploading'}
+                maxLength={1000}
+              />
+              <div className="description-footer">
+                <p className="description-hint">
+                  Esta descripción se utilizará como Metadata para ayudar a los motores de búsqueda.
+                  También se utilizará para que el usuario pueda entender el video que mire.
+                </p>
+                <span className={`char-counter ${description.length >= 900 ? 'warning' : ''}`}>
+                  {description.length}/1000
+                </span>
+              </div>
             </div>
 
             {uploadProgress.status === 'uploading' && (
