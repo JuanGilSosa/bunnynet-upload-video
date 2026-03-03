@@ -1,80 +1,53 @@
-# BunnyNet Video Uploader
+# BunnyNet Video Uploader Pro
 
-Aplicación React + Vite para subir videos a BunnyNet con funcionalidad de drag & drop y seguimiento de progreso en tiempo real.
+Aplicación de nivel empresarial construida con **React + Vite** para la gestión y subida de videos a **BunnyNet Stream**, utilizando el protocolo **TUS** para subidas resumibles y una arquitectura segura basada en **Cloudflare Workers**.
 
-## 🚀 Características
+## 🚀 Características Principales
 
-- ✨ **Drag & Drop**: Arrastra y suelta videos directamente
-- 📊 **Progreso en tiempo real**: Visualiza el progreso de subida con barra animada
-- 🎬 **Preview de video**: Vista previa del video antes de subir
-- ✅ **Validación de archivos**: Verifica formato y tamaño (máx. 2GB)
-- 🎨 **Diseño moderno**: UI inspirada en Tailwind CSS con gradientes y animaciones
-- 📱 **Responsive**: Funciona perfectamente en móviles y desktop
+- 🔐 **Autenticación JWT**: Acceso protegido mediante login con usuario y contraseña.
+- 🔄 **Subidas Resumibles (TUS)**: Protocolo resiliente que permite reanudar subidas interrumpidas por fallos de red.
+- 📁 **Gestión de Colecciones**: CRUD completo de colecciones de BunnyNet integrado en la interfaz.
+- 🛡️ **Arquitectura Segura**: Las API Keys nunca se exponen al cliente; todo se gestiona mediante un Worker backend.
+- ✨ **UI Premium**: Diseño moderno con glassmorphism, pestañas de navegación y estados de carga optimizados.
+- 📊 **Progreso Detallado**: Barra de progreso en tiempo real con detección automática de reanudación.
+- ✅ **Validación Robusta**: Control de formatos y tamaño de archivos (hasta 2GB).
+
+## 🏗️ Arquitectura
+
+La aplicación ya no se comunica directamente con BunnyNet para operaciones sensibles. Sigue este flujo:
+
+1. **Frontend** → Solicita autorización (Login) al Worker.
+2. **Worker** → Valida credenciales y devuelve un **JWT**.
+3. **Frontend** → Solicita credenciales de subida firmadas al Worker enviando el JWT.
+4. **Worker** → Crea el objeto de video en BunnyNet y genera una firma TUS (`SHA256`).
+5. **Frontend** → Sube el archivo directamente a BunnyNet usando `tus-js-client` con la firma recibida.
 
 ## 📋 Requisitos Previos
 
-- Node.js (versión 16 o superior)
-- npm o yarn
-- Cuenta de BunnyNet con:
-  - API Key
-  - Library ID
-  - Región configurada
+- **Node.js**: v18 o superior.
+- **pnpm**: Recomendado (o npm/yarn).
+- **Backend**: Cloudflare Worker configurado (ver sección de Worker).
 
-## 🛠️ Instalación
+## 🛠️ Instalación y Configuración
 
-1. **Clonar o navegar al directorio del proyecto**
-
-2. **Instalar dependencias**
+1. **Instalar dependencias:**
    ```bash
-   npm install
+   pnpm install
    ```
 
-3. **Configurar variables de entorno**
-   
-   Edita el archivo `.env` con tus credenciales de BunnyNet:
+2. **Variables de Entorno:**
+   Crea un archivo `.env` (o usa `.env.development` para local) con:
    ```env
-   VITE_BUNNY_API_KEY=tu_api_key_aqui
-   VITE_BUNNY_LIBRARY_ID=tu_library_id_aqui
-   VITE_BUNNY_REGION=br
+   VITE_BUNNY_LIBRARY_ID=tu_library_id
+   VITE_WORKER_API_URL=https://tu-worker.com/api
    ```
+   *Nota: Ya no se requiere `VITE_BUNNY_API_KEY` en el frontend.*
 
-## 🚀 Uso
+## 🚀 Scripts Disponibles
 
-### Desarrollo
-
-Inicia el servidor de desarrollo:
-
-```bash
-npm run dev
-```
-
-La aplicación estará disponible en `http://localhost:5174`
-
-### Producción
-
-Construir para producción:
-
-```bash
-npm run build
-```
-
-Previsualizar build de producción:
-
-```bash
-npm run preview
-```
-
-## 🌐 Uso con Cloudflare Tunnel
-
-Para exponer tu aplicación localmente y permitir que otros suban videos:
-
-1. Instala Cloudflare Tunnel (cloudflared)
-2. Ejecuta el servidor de desarrollo
-3. Crea un túnel:
-   ```bash
-   cloudflared tunnel --url http://localhost:5174
-   ```
-4. Comparte la URL generada
+- `pnpm run dev`: Inicia el entorno de desarrollo.
+- `pnpm run build`: Genera el bundle de producción optimizado.
+- `pnpm run preview`: Previsualiza la versión de producción.
 
 ## 📁 Estructura del Proyecto
 
@@ -82,86 +55,24 @@ Para exponer tu aplicación localmente y permitir que otros suban videos:
 upload-video/
 ├── src/
 │   ├── components/
-│   │   ├── VideoUploader.tsx      # Componente principal
-│   │   └── VideoUploader.css      # Estilos del uploader
+│   │   ├── Login.tsx            # Interfaz de acceso
+│   │   ├── VideoUploader.tsx    # Gestión de subidas TUS
+│   │   └── CollectionsManager.tsx # CRUD de colecciones
 │   ├── services/
-│   │   └── bunnynet.ts            # Integración con BunnyNet API
+│   │   ├── auth.ts              # Servicio de JWT y Login
+│   │   └── bunnynet.ts          # Integración TUS y Proxy Worker
 │   ├── types/
-│   │   └── index.ts               # Definiciones TypeScript
-│   ├── App.tsx                    # Componente raíz
-│   ├── App.css                    # Estilos de App
-│   ├── index.css                  # Estilos globales
-│   └── main.tsx                   # Punto de entrada
-├── .env                           # Variables de entorno
-├── .env.example                   # Plantilla de variables
-└── package.json
+│   │   └── index.ts             # Definiciones de TypeScript
+│   ├── App.tsx                  # Layout principal y navegación por pestañas
+│   └── main.tsx                 # Entrada de la aplicación
+├── .env                         # Configuración de producción
+└── .env.development             # Configuración de desarrollo local
 ```
 
-## 🔧 Cómo Funciona
+## 📝 Notas de Implementación
 
-1. **Selección de archivo**: El usuario puede arrastrar un video o hacer clic para seleccionar
-2. **Validación**: Se verifica que sea un archivo de video válido y no exceda 500MB
-3. **Preview**: Se muestra una vista previa del video seleccionado
-4. **Subida**: Al hacer clic en "Subir Video":
-   - Se crea un nuevo video en BunnyNet
-   - Se sube el archivo directamente desde el navegador
-   - Se muestra el progreso en tiempo real
-5. **Resultado**: Se muestra mensaje de éxito o error
+### Manejo de Descripciones
+BunnyNet ignora la descripción en el momento de creación vía TUS. Para que la descripción se guarde, el **Worker** debe realizar un `POST` de actualización al endpoint de video justo después de crearlo, antes de devolver la firma al frontend.
 
-## 🔐 Nota de Seguridad
-
-⚠️ **IMPORTANTE**: Esta aplicación expone la API key de BunnyNet en el cliente. Para uso en producción, se recomienda:
-
-- Implementar un backend proxy que maneje las credenciales
-- Usar tokens temporales o firmados
-- Implementar autenticación de usuarios
-
-## 🎨 Personalización
-
-### Cambiar colores del gradiente
-
-Edita `VideoUploader.css` y modifica las propiedades `linear-gradient`:
-
-```css
-background: linear-gradient(135deg, #tu-color-1 0%, #tu-color-2 100%);
-```
-
-### Ajustar tamaño máximo de archivo
-
-Modifica la constante en `VideoUploader.tsx`:
-
-```typescript
-const maxSize = 500 * 1024 * 1024; // Cambia 500 por el tamaño deseado en MB
-```
-
-## 📝 API de BunnyNet
-
-Esta aplicación usa la API de BunnyNet Stream:
-
-- **Crear video**: `POST /library/{libraryId}/videos`
-- **Subir archivo**: `PUT /library/{libraryId}/videos/{videoId}`
-
-Documentación: [BunnyNet Stream API](https://docs.bunny.net/reference/video_createvideo)
-
-## 🐛 Solución de Problemas
-
-### Error: "Cannot find module"
-```bash
-npm install
-```
-
-### Error de CORS
-Asegúrate de que tu biblioteca de BunnyNet permite solicitudes desde tu dominio.
-
-### Video no se sube
-- Verifica que las credenciales en `.env` sean correctas
-- Revisa la consola del navegador para errores específicos
-- Confirma que la región esté configurada correctamente
-
-## 📄 Licencia
-
-Este proyecto es de código abierto y está disponible para uso personal y comercial.
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor, abre un issue o pull request para sugerencias o mejoras.
+### Error HEAD 404
+Al iniciar una subida, es normal ver un error `404` en la consola dirigido a `/tusupload/...`. Es la librería `tus-js-client` buscando sesiones previas para el nuevo VideoID. Ignora este mensaje; la subida comenzará normalmente.

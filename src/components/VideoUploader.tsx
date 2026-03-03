@@ -1,18 +1,51 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from 'react';
-import { uploadVideoToBunnyNet } from '../services/bunnynet';
-import type { UploadProgress } from '../types';
+import { uploadVideoToBunnyNet, createCollection } from '../services/bunnynet';
+import type { UploadProgress, BunnyNetCollection } from '../types';
 import './VideoUploader.css';
 
-const VideoUploader = () => {
+interface VideoUploaderProps {
+  collections: BunnyNetCollection[];
+  onRefreshCollections: () => Promise<void>;
+}
+
+const VideoUploader: React.FC<VideoUploaderProps> = ({ collections, onRefreshCollections }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [description, setDescription] = useState('');
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('');
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  const [isCreatingCollectionAPI, setIsCreatingCollectionAPI] = useState(false);
+  const [newColName, setNewColName] = useState('');
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     percentage: 0,
     status: 'idle',
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleCreateCollection = async () => {
+    if (!newColName.trim()) return;
+    try {
+      setIsCreatingCollectionAPI(true);
+      const result = await createCollection(newColName);
+      if (result.success) {
+        await onRefreshCollections();
+        if (result.data?.guid) {
+          setSelectedCollectionId(result.data.guid);
+        }
+        setIsCreatingCollection(false);
+        setNewColName('');
+      } else {
+        alert(result.message);
+      }
+    } catch (err) {
+      console.error('Error creating collection:', err);
+      alert('Error al crear colección');
+    } finally {
+      setIsCreatingCollectionAPI(false);
+    }
+  };
 
   const validateFile = (file: File): boolean => {
     // Validar que sea un video
@@ -98,14 +131,24 @@ const VideoUploader = () => {
       message: 'Subiendo video...',
     });
 
+    // Crear AbortController para permitir cancelación
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const result = await uploadVideoToBunnyNet(selectedFile, description, (percentage) => {
-        setUploadProgress({
-          percentage,
-          status: 'uploading',
-          message: `Subiendo... ${percentage}%`,
-        });
-      });
+      const result = await uploadVideoToBunnyNet(
+        selectedFile,
+        description,
+        (percentage, isResuming) => {
+          setUploadProgress({
+            percentage,
+            status: 'uploading',
+            message: isResuming ? `Reanudando... ${percentage}%` : `Subiendo... ${percentage}%`,
+          });
+        },
+        selectedCollectionId,
+        controller.signal
+      );
 
       if (result.success) {
         setUploadProgress({
@@ -121,15 +164,27 @@ const VideoUploader = () => {
         });
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Subida abortada');
+        return;
+      }
       setUploadProgress({
         percentage: 0,
         status: 'error',
         message: 'Error al subir el video',
       });
+    } finally {
+      abortControllerRef.current = null;
     }
   };
 
   const handleReset = () => {
+    // Si hay una subida en curso, abortarla
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
     setSelectedFile(null);
     setVideoPreview(null);
     setDescription('');
@@ -209,6 +264,64 @@ const VideoUploader = () => {
               </p>
             </div>
 
+            <div className="collection-selection">
+              <label className="description-label">Colección (Opcional)</label>
+              <div className="collection-controls">
+                {!isCreatingCollection ? (
+                  <>
+                    <select
+                      value={selectedCollectionId}
+                      onChange={(e) => setSelectedCollectionId(e.target.value)}
+                      className="collection-select"
+                      disabled={uploadProgress.status === 'uploading'}
+                    >
+                      <option value="">Ninguna (Carpeta Raíz)</option>
+                      {collections.map((col) => (
+                        <option key={col.guid} value={col.guid}>
+                          {col.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="inline-create-btn"
+                      onClick={() => setIsCreatingCollection(true)}
+                      disabled={uploadProgress.status === 'uploading'}
+                    >
+                      + Nueva
+                    </button>
+                  </>
+                ) : (
+                  <div className="inline-creator">
+                    <input
+                      type="text"
+                      value={newColName}
+                      onChange={(e) => setNewColName(e.target.value)}
+                      placeholder="Nombre colección"
+                      className="inline-col-input"
+                      disabled={isCreatingCollectionAPI}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateCollection}
+                      className="confirm-col-btn"
+                      disabled={isCreatingCollectionAPI}
+                    >
+                      {isCreatingCollectionAPI ? '...' : 'Ok'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingCollection(false)}
+                      className="cancel-col-btn"
+                      disabled={isCreatingCollectionAPI}
+                    >
+                      X
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="description-field">
               <label htmlFor="video-description" className="description-label">
                 Descripción del video
@@ -273,11 +386,19 @@ const VideoUploader = () => {
 
             <div className="button-group">
               {uploadProgress.status !== 'uploading' && uploadProgress.status !== 'success' && (
-                <button className="upload-button" onClick={handleUpload}>
+                <button
+                  className="upload-button"
+                  onClick={handleUpload}
+                  disabled={isCreatingCollectionAPI}
+                >
                   Subir Video
                 </button>
               )}
-              <button className="reset-button" onClick={handleReset}>
+              <button
+                className="reset-button"
+                onClick={handleReset}
+                disabled={uploadProgress.status === 'uploading'}
+              >
                 {uploadProgress.status === 'success' ? 'Subir otro video' : 'Cancelar'}
               </button>
             </div>
